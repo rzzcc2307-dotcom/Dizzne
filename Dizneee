@@ -1,0 +1,283 @@
+-- valscripts: first-window UI prototype
+-- Local interface preview only. This file does not hook Adopt Me internals,
+-- spoof live trades, or perform real player actions.
+-- Run in a Roblox Lua environment that permits LocalPlayer PlayerGui access.
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+if not player then
+    warn("valscripts UI must run on the client.")
+    return
+end
+
+local playerGui = player:WaitForChild("PlayerGui")
+local old = playerGui:FindFirstChild("ValScriptsPreview")
+if old then old:Destroy() end
+
+local C = {
+    bg = Color3.fromRGB(16, 21, 34),
+    panel = Color3.fromRGB(23, 29, 45),
+    field = Color3.fromRGB(23, 29, 45),
+    border = Color3.fromRGB(35, 60, 104),
+    borderSoft = Color3.fromRGB(53, 65, 95),
+    navy = Color3.fromRGB(32, 61, 112),
+    navyDark = Color3.fromRGB(23, 43, 85),
+    turquoise = Color3.fromRGB(22, 143, 145),
+    blue = Color3.fromRGB(40, 85, 163),
+    lightBlue = Color3.fromRGB(120, 191, 255),
+    paleBlue = Color3.fromRGB(169, 223, 255),
+    midBlue = Color3.fromRGB(35, 106, 154),
+    white = Color3.fromRGB(255, 255, 255),
+    black = Color3.fromRGB(0, 0, 0),
+}
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "ValScriptsPreview"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.Parent = playerGui
+
+local scale = Instance.new("UIScale")
+scale.Scale = 1
+scale.Parent = gui
+
+local function updateScale()
+    local camera = workspace.CurrentCamera
+    if not camera then return end
+    local viewport = camera.ViewportSize
+    scale.Scale = math.clamp(math.min(viewport.X / 900, viewport.Y / 760), 0.62, 1)
+end
+updateScale()
+if workspace.CurrentCamera then
+    workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateScale)
+end
+
+local main = Instance.new("Frame")
+main.Name = "MainWindow"
+main.AnchorPoint = Vector2.new(0.5, 0.5)
+main.Position = UDim2.fromScale(0.5, 0.5)
+main.Size = UDim2.fromOffset(820, 700)
+main.BackgroundColor3 = C.bg
+main.BorderSizePixel = 0
+main.Parent = gui
+Instance.new("UICorner", main).CornerRadius = UDim.new(0, 24)
+
+local outline = Instance.new("UIStroke")
+outline.Color = C.border
+outline.Thickness = 3
+outline.Parent = main
+
+local padding = Instance.new("UIPadding")
+padding.PaddingTop = UDim.new(0, 18)
+padding.PaddingBottom = UDim.new(0, 18)
+padding.PaddingLeft = UDim.new(0, 22)
+padding.PaddingRight = UDim.new(0, 22)
+padding.Parent = main
+
+local brand = Instance.new("TextLabel")
+brand.Name = "Brand"
+brand.BackgroundTransparency = 1
+brand.Position = UDim2.new(0, 0, 0, 0)
+brand.Size = UDim2.new(1, 0, 0, 36)
+brand.Font = Enum.Font.FredokaOne
+brand.Text = "тгк: valscripts"
+brand.TextColor3 = C.white
+brand.TextStrokeColor3 = C.black
+brand.TextStrokeTransparency = 0
+brand.TextSize = 23
+brand.Parent = main
+
+local separator = Instance.new("Frame")
+separator.Position = UDim2.new(0, 0, 0, 48)
+separator.Size = UDim2.new(1, 0, 0, 2)
+separator.BackgroundColor3 = C.borderSoft
+separator.BorderSizePixel = 0
+separator.Parent = main
+
+local close = Instance.new("TextButton")
+close.Name = "Close"
+close.AnchorPoint = Vector2.new(1, 0)
+close.Position = UDim2.new(1, 0, 0, -2)
+close.Size = UDim2.fromOffset(38, 36)
+close.BackgroundColor3 = C.navyDark
+close.Text = "×"
+close.Font = Enum.Font.FredokaOne
+close.TextSize = 28
+close.TextColor3 = C.white
+close.TextStrokeColor3 = C.black
+close.TextStrokeTransparency = 0
+close.AutoButtonColor = false
+close.Parent = main
+Instance.new("UICorner", close).CornerRadius = UDim.new(0, 12)
+
+local content = Instance.new("ScrollingFrame")
+content.Name = "TradePage"
+content.Position = UDim2.new(0, 0, 0, 62)
+content.Size = UDim2.new(1, 0, 1, -62)
+content.BackgroundTransparency = 1
+content.BorderSizePixel = 0
+content.ScrollBarThickness = 5
+content.ScrollBarImageColor3 = C.border
+content.CanvasSize = UDim2.new(0, 0, 0, 0)
+content.AutomaticCanvasSize = Enum.AutomaticSize.Y
+content.ScrollingDirection = Enum.ScrollingDirection.Y
+content.Parent = main
+
+local list = Instance.new("UIListLayout")
+list.Padding = UDim.new(0, 10)
+list.SortOrder = Enum.SortOrder.LayoutOrder
+list.Parent = content
+
+local function addLabel(text, height)
+    local label = Instance.new("TextLabel")
+    label.BackgroundTransparency = 1
+    label.Size = UDim2.new(1, 0, 0, height or 25)
+    label.Font = Enum.Font.FredokaOne
+    label.Text = text
+    label.TextColor3 = C.white
+    label.TextStrokeColor3 = C.black
+    label.TextStrokeTransparency = 0
+    label.TextSize = 19
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = content
+    return label
+end
+
+local function addField(labelText, defaultText, order)
+    addLabel(labelText, 24).LayoutOrder = order
+    local box = Instance.new("TextBox")
+    box.Name = labelText:gsub("%W", "") .. "Field"
+    box.LayoutOrder = order + 1
+    box.Size = UDim2.new(1, 0, 0, 44)
+    box.BackgroundColor3 = C.field
+    box.BorderSizePixel = 0
+    box.ClearTextOnFocus = false
+    box.Font = Enum.Font.FredokaOne
+    box.Text = defaultText
+    box.PlaceholderText = ""
+    box.TextColor3 = C.white
+    box.TextStrokeColor3 = C.black
+    box.TextStrokeTransparency = 0
+    box.TextSize = 20
+    box.TextXAlignment = Enum.TextXAlignment.Left
+    box.Parent = content
+    Instance.new("UICorner", box).CornerRadius = UDim.new(0, 16)
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = C.borderSoft
+    stroke.Thickness = 1.5
+    stroke.Parent = box
+    local pad = Instance.new("UIPadding")
+    pad.PaddingLeft = UDim.new(0, 14)
+    pad.PaddingRight = UDim.new(0, 12)
+    pad.Parent = box
+    return box
+end
+
+local function addButton(text, color, order, callback)
+    local button = Instance.new("TextButton")
+    button.Name = text:gsub("%W", "") .. "Button"
+    button.LayoutOrder = order
+    button.Size = UDim2.new(1, 0, 0, 46)
+    button.BackgroundColor3 = color
+    button.BorderSizePixel = 0
+    button.AutoButtonColor = false
+    button.Font = Enum.Font.FredokaOne
+    button.Text = text
+    button.TextColor3 = C.white
+    button.TextStrokeColor3 = C.black
+    button.TextStrokeTransparency = 0
+    button.TextSize = 20
+    button.Parent = content
+    Instance.new("UICorner", button).CornerRadius = UDim.new(0, 17)
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = C.borderSoft
+    stroke.Transparency = 0.35
+    stroke.Thickness = 1
+    stroke.Parent = button
+
+    local original = color
+    local brighter = Color3.new(
+        math.min(original.R + 0.13, 1),
+        math.min(original.G + 0.13, 1),
+        math.min(original.B + 0.13, 1)
+    )
+    button.MouseButton1Down:Connect(function()
+        TweenService:Create(button, TweenInfo.new(0.08), {BackgroundColor3 = brighter}):Play()
+    end)
+    button.MouseButton1Up:Connect(function()
+        TweenService:Create(button, TweenInfo.new(0.12), {BackgroundColor3 = original}):Play()
+    end)
+    button.Activated:Connect(function()
+        if callback then callback() end
+    end)
+    return button
+end
+
+local partner = addField("Partner Username", "JaNYasha", 1)
+local acceptDelay = addField("Accept Delay (s)", "1", 3)
+local confirmDelay = addField("Confirm Delay (s)", "1", 5)
+local spectators = addField("Spectators", "0", 7)
+
+local autoOn = false
+local autoButton
+autoButton = addButton("Avto 👀 : Off", C.navy, 9, function()
+    autoOn = not autoOn
+    autoButton.Text = autoOn and "Avto 👀 : On" or "Avto 👀 : Off"
+    autoButton.BackgroundColor3 = autoOn and C.lightBlue or C.navy
+end)
+
+local petAmount = addField("Pet Amount", "3", 11)
+addButton("Add Random Item", C.turquoise, 13, function()
+    warn("Preview only: Add Random Item is not connected to a live trade.")
+end)
+addButton("Clear", C.blue, 14, function()
+    warn("Preview only: Clear is not connected to a live trade.")
+end)
+addButton("Start Trade", C.lightBlue, 15, function()
+    warn("Preview only: Start Trade does not create or spoof a live trade.")
+end)
+addButton("Block", C.navyDark, 16, function()
+    warn("Preview only: Block does not block or remove any player.")
+end)
+addButton("Accept", C.paleBlue, 17, function()
+    warn("Preview only: Accept is not connected to a live trade.")
+end)
+addButton("Unaccept", C.midBlue, 18, function()
+    warn("Preview only: Unaccept is not connected to a live trade.")
+end)
+
+-- Dragging support for mouse and touch.
+local dragging = false
+local dragStart
+local startPos
+brand.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = main.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        main.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+close.Activated:Connect(function()
+    gui:Destroy()
+end)
